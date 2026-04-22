@@ -1,0 +1,84 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgvector(map: "vector")]
+}
+
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  passwordHash String
+  name         String
+  role         Role       @default(USER)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  documents    Document[]
+  queries      QueryLog[]
+
+  @@map("users")
+}
+
+model Document {
+  id          String           @id @default(cuid())
+  fileName    String
+  fileSize    Int
+  fileType    String
+  storageUrl  String
+  status      ProcessingStatus @default(PENDING)
+  chunkCount  Int?
+  userId      String
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  chunks      DocumentChunk[]
+  queries     QueryLog[]
+
+  @@map("documents")
+}
+
+model DocumentChunk {
+  id         String                 @id @default(cuid())
+  content    String
+  chunkIndex Int
+  embedding  Unsupported("vector(1536)")?
+  documentId String
+  document   Document               @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  createdAt  DateTime               @default(now())
+
+  @@map("document_chunks")
+}
+
+model QueryLog {
+  id               String   @id @default(cuid())
+  question         String
+  answer           String
+  confidenceScore  Float?
+  tokensUsed       Int?
+  responseTimeMs   Int?
+  documentId       String
+  document         Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt        DateTime @default(now())
+
+  @@map("query_logs")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum ProcessingStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
