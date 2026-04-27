@@ -7,6 +7,9 @@ import { createServer } from 'http';
 
 dotenv.config();
 
+import { prisma } from './config/database';
+import { redis } from './config/redis';
+
 const app = express();
 const httpServer = createServer(app);
 
@@ -21,19 +24,32 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // ── Health check ──────────────────────────────────────────
-app.get('/health', (_req, res) => {
-  res.json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV,
-  });
-});
+app.get('/health', async (_req, res) => {
+  try {
+    // Test DB connection
+    await prisma.$queryRaw`SELECT 1`;
 
-// ── Routes (we'll add these phase by phase) ───────────────
-// app.use('/api/auth', authRouter);
-// app.use('/api/documents', documentRouter);
-// app.use('/api/query', queryRouter);
-// app.use('/api/admin', adminRouter);
+    // Test Redis connection
+    await redis.ping();
+
+    res.json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV,
+      services: {
+        database: 'connected',
+        redis: 'connected',
+        groq: process.env.GROQ_API_KEY ? 'key loaded' : 'missing',
+        supabase: process.env.SUPABASE_URL ? 'key loaded' : 'missing',
+      },
+    });
+  } catch (error) {
+    res.status(503).json({
+      status: 'error',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
 
 // ── 404 handler ───────────────────────────────────────────
 app.use((_req, res) => {
@@ -41,15 +57,29 @@ app.use((_req, res) => {
 });
 
 // ── Start ─────────────────────────────────────────────────
-const PORT = process.env.PORT || 5000;
-httpServer.listen(PORT, () => {
-  console.log(`
+const PORT = process.env.PORT || 5001;
+
+async function bootstrap() {
+  try {
+    // Test DB on startup
+    await prisma.$connect();
+    console.log('Database connected');
+
+    httpServer.listen(PORT, () => {
+      console.log(`
   ┌─────────────────────────────────────┐
   │   DocuMind AI Backend               │
-  │   Running on http://localhost:${PORT}  │
+  │   http://localhost:${PORT}             │
   │   Environment: ${process.env.NODE_ENV}          │
   └─────────────────────────────────────┘
-  `);
-});
+      `);
+    });
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  }
+}
+
+bootstrap();
 
 export { app, httpServer };
