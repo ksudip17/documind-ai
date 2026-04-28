@@ -1,9 +1,11 @@
+import './config/env';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
 import { createServer } from 'http';
+import { startDocumentWorker } from './workers/documentWorker';
 
 dotenv.config();
 
@@ -67,9 +69,11 @@ app.use((_req, res) => {
 const PORT = process.env.PORT || 5001;
 
 async function bootstrap() {
+
   try {
     // Test DB on startup
     await prisma.$connect();
+    startDocumentWorker();
     console.log('Database connected');
 
     httpServer.listen(PORT, () => {
