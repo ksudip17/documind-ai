@@ -53,12 +53,14 @@ app.get('/health', async (_req, res) => {
   }
 });
 
-// ── Routes ───────────────────────────────────────────────
+// ---------------------Routes---------------
 import authRouter from './routes/auth';
 import documentRouter from './routes/document';
+import queryRouter from './routes/query';
 
 app.use('/api/auth', authRouter);
 app.use('/api/documents', documentRouter);
+app.use('/api/query', queryRouter);
 
 // ── 404 handler ───────────────────────────────────────────
 app.use((_req, res) => {
