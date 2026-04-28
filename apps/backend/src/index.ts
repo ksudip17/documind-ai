@@ -6,6 +6,11 @@ import morgan from 'morgan';
 import dotenv from 'dotenv';
 import { createServer } from 'http';
 import { startDocumentWorker } from './workers/documentWorker';
+import authRouter from './routes/auth';
+import documentRouter from './routes/document';
+import queryRouter from './routes/query';
+import adminRouter from './routes/admin';
+import { errorHandler } from './middleware/errorHandler';
 
 dotenv.config();
 
@@ -54,18 +59,19 @@ app.get('/health', async (_req, res) => {
 });
 
 // ---------------------Routes---------------
-import authRouter from './routes/auth';
-import documentRouter from './routes/document';
-import queryRouter from './routes/query';
-
 app.use('/api/auth', authRouter);
 app.use('/api/documents', documentRouter);
 app.use('/api/query', queryRouter);
+app.use('/api/admin', adminRouter);
+
 
 // ── 404 handler ───────────────────────────────────────────
 app.use((_req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
+
+// ── Global error handler (must be last) ──────────────────
+app.use(errorHandler);
 
 // ── Start ─────────────────────────────────────────────────
 const PORT = process.env.PORT || 5001;
