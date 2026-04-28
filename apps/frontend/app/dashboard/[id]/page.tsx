@@ -1,0 +1,181 @@
+'use client';
+import { useEffect, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { api } from '@/lib/api';
+import { useAuthStore } from '@/store/authStore';
+
+interface QueryResult {
+  answer: string;
+  sources: Array<{ content: string; chunkIndex: number }>;
+  confidenceScore: number;
+  tokensUsed: number;
+  responseTimeMs: number;
+  cached: boolean;
+}
+
+interface Message {
+  role: 'user' | 'assistant';
+  content: string;
+  result?: QueryResult;
+}
+
+export default function DocumentQueryPage() {
+  const { id } = useParams();
+  const router = useRouter();
+  const { hydrate } = useAuthStore();
+  const [document, setDocument] = useState<any>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [question, setQuestion] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => { hydrate(); }, []);
+
+  useEffect(() => {
+    if (!localStorage.getItem('token')) {
+      router.push('/auth/login');
+      return;
+    }
+    fetchDocument();
+  }, [id]);
+
+  async function fetchDocument() {
+    try {
+      const { data } = await api.get(`/documents/${id}`);
+      setDocument(data.document);
+    } catch {
+      router.push('/dashboard');
+    }
+  }
+
+  async function handleQuery(e: React.FormEvent) {
+    e.preventDefault();
+    if (!question.trim() || loading) return;
+
+    const userMsg: Message = { role: 'user', content: question };
+    setMessages((prev) => [...prev, userMsg]);
+    setQuestion('');
+    setLoading(true);
+
+    try {
+      const { data } = await api.post('/query', {
+        question: userMsg.content,
+        documentId: id,
+      });
+
+      const assistantMsg: Message = {
+        role: 'assistant',
+        content: data.answer,
+        result: data,
+      };
+      setMessages((prev) => [...prev, assistantMsg]);
+    } catch (err: any) {
+      setMessages((prev) => [...prev, {
+        role: 'assistant',
+        content: err.response?.data?.error || 'Failed to get answer',
+      }]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function confidenceColor(score: number) {
+    if (score >= 0.8) return 'text-green-400';
+    if (score >= 0.5) return 'text-yellow-400';
+    return 'text-red-400';
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-950 flex flex-col">
+      {/* Navbar */}
+      <nav className="border-b border-gray-800 px-6 py-4 flex justify-between items-center shrink-0">
+        <div className="flex items-center gap-3">
+          <button onClick={() => router.push('/dashboard')} className="text-gray-400 hover:text-white transition text-sm">
+            ← Back
+          </button>
+          <div className="w-px h-4 bg-gray-700" />
+          <span className="text-sm font-medium truncate max-w-xs">
+            {document?.fileName || 'Loading...'}
+          </span>
+        </div>
+        {document && (
+          <span className="text-xs text-green-400 bg-green-400/10 px-2.5 py-1 rounded-full">
+            {document.chunkCount} chunks indexed
+          </span>
+        )}
+      </nav>
+
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto px-6 py-6 max-w-3xl mx-auto w-full space-y-6">
+        {messages.length === 0 && (
+          <div className="text-center py-20">
+            <div className="text-4xl mb-4">🤖</div>
+            <h3 className="font-medium mb-2">Ask anything about this document</h3>
+            <p className="text-gray-500 text-sm">Powered by Llama 3.3 + RAG pipeline</p>
+            <div className="flex flex-wrap justify-center gap-2 mt-6">
+              {['What is this document about?', 'Summarize the key points', 'What are the main topics?'].map((q) => (
+                <button key={q} onClick={() => setQuestion(q)}
+                  className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded-lg text-xs text-gray-300 transition">
+                  {q}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {messages.map((msg, i) => (
+          <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+            <div className={`max-w-2xl rounded-2xl px-5 py-4 ${
+              msg.role === 'user'
+                ? 'bg-violet-600 text-white'
+                : 'bg-gray-900 border border-gray-800'
+            }`}>
+              <p className="text-sm leading-relaxed">{msg.content}</p>
+              {msg.result && (
+                <div className="mt-3 pt-3 border-t border-gray-700 flex flex-wrap gap-3 text-xs text-gray-400">
+                  <span className={confidenceColor(msg.result.confidenceScore)}>
+                    {(msg.result.confidenceScore * 100).toFixed(0)}% confidence
+                  </span>
+                  <span>{msg.result.tokensUsed} tokens</span>
+                  <span>{msg.result.responseTimeMs}ms</span>
+                  {msg.result.cached && <span className="text-violet-400">⚡ cached</span>}
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+
+        {loading && (
+          <div className="flex justify-start">
+            <div className="bg-gray-900 border border-gray-800 rounded-2xl px-5 py-4">
+              <div className="flex gap-1">
+                <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Input */}
+      <div className="border-t border-gray-800 px-6 py-4 shrink-0">
+        <form onSubmit={handleQuery} className="max-w-3xl mx-auto flex gap-3">
+          <input
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            placeholder="Ask a question about this document..."
+            className="flex-1 bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-violet-500 transition"
+            disabled={loading}
+          />
+          <button
+            type="submit"
+            disabled={loading || !question.trim()}
+            className="px-5 py-3 bg-violet-600 hover:bg-violet-700 disabled:opacity-50 rounded-xl text-sm font-medium transition"
+          >
+            Ask
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
