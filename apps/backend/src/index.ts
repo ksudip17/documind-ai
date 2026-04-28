@@ -53,7 +53,10 @@ app.get('/health', async (_req, res) => {
 
 // ── Routes ───────────────────────────────────────────────
 import authRouter from './routes/auth';
+import documentRouter from './routes/document';
+
 app.use('/api/auth', authRouter);
+app.use('/api/documents', documentRouter);
 
 // ── 404 handler ───────────────────────────────────────────
 app.use((_req, res) => {
