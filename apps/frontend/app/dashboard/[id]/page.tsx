@@ -1,8 +1,8 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
-import { useAuthStore } from '@/store/authStore';
+import { useAuth } from '@/hooks/useAuth';
 
 interface QueryResult {
   answer: string;
@@ -22,21 +22,22 @@ interface Message {
 export default function DocumentQueryPage() {
   const { id } = useParams();
   const router = useRouter();
-  const { hydrate } = useAuthStore();
+  const { hydrated } = useAuth();
   const [document, setDocument] = useState<any>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [question, setQuestion] = useState('');
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => { hydrate(); }, []);
+  const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!localStorage.getItem('token')) {
-      router.push('/auth/login');
-      return;
-    }
-    fetchDocument();
-  }, [id]);
+    if (hydrated) fetchDocument();
+  }, [hydrated, id]);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  if (!hydrated) return null;
 
   async function fetchDocument() {
     try {
@@ -78,10 +79,10 @@ export default function DocumentQueryPage() {
     }
   }
 
-  function confidenceColor(score: number) {
-    if (score >= 0.8) return 'text-green-400';
-    if (score >= 0.5) return 'text-yellow-400';
-    return 'text-red-400';
+  function confidenceLabel(score: number) {
+    if (score >= 0.8) return { text: 'High confidence', color: 'text-green-400' };
+    if (score >= 0.5) return { text: 'Medium confidence', color: 'text-yellow-400' };
+    return { text: 'Low confidence', color: 'text-red-400' };
   }
 
   return (
@@ -89,7 +90,10 @@ export default function DocumentQueryPage() {
       {/* Navbar */}
       <nav className="border-b border-gray-800 px-6 py-4 flex justify-between items-center shrink-0">
         <div className="flex items-center gap-3">
-          <button onClick={() => router.push('/dashboard')} className="text-gray-400 hover:text-white transition text-sm">
+          <button
+            onClick={() => router.push('/dashboard')}
+            className="text-gray-400 hover:text-white transition text-sm"
+          >
             ← Back
           </button>
           <div className="w-px h-4 bg-gray-700" />
@@ -112,9 +116,16 @@ export default function DocumentQueryPage() {
             <h3 className="font-medium mb-2">Ask anything about this document</h3>
             <p className="text-gray-500 text-sm">Powered by Llama 3.3 + RAG pipeline</p>
             <div className="flex flex-wrap justify-center gap-2 mt-6">
-              {['What is this document about?', 'Summarize the key points', 'What are the main topics?'].map((q) => (
-                <button key={q} onClick={() => setQuestion(q)}
-                  className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded-lg text-xs text-gray-300 transition">
+              {[
+                'What is this document about?',
+                'Summarize the key points',
+                'What are the main topics?',
+              ].map((q) => (
+                <button
+                  key={q}
+                  onClick={() => setQuestion(q)}
+                  className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded-lg text-xs text-gray-300 transition"
+                >
                   {q}
                 </button>
               ))}
@@ -129,15 +140,17 @@ export default function DocumentQueryPage() {
                 ? 'bg-violet-600 text-white'
                 : 'bg-gray-900 border border-gray-800'
             }`}>
-              <p className="text-sm leading-relaxed">{msg.content}</p>
+              <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
               {msg.result && (
-                <div className="mt-3 pt-3 border-t border-gray-700 flex flex-wrap gap-3 text-xs text-gray-400">
-                  <span className={confidenceColor(msg.result.confidenceScore)}>
-                    {(msg.result.confidenceScore * 100).toFixed(0)}% confidence
+                <div className="mt-3 pt-3 border-t border-gray-700 flex flex-wrap gap-3 text-xs">
+                  <span className={confidenceLabel(msg.result.confidenceScore).color}>
+                    {confidenceLabel(msg.result.confidenceScore).text}
                   </span>
-                  <span>{msg.result.tokensUsed} tokens</span>
-                  <span>{msg.result.responseTimeMs}ms</span>
-                  {msg.result.cached && <span className="text-violet-400">⚡ cached</span>}
+                  <span className="text-gray-500">{msg.result.tokensUsed} tokens</span>
+                  <span className="text-gray-500">{msg.result.responseTimeMs}ms</span>
+                  {msg.result.cached && (
+                    <span className="text-violet-400">⚡ cached</span>
+                  )}
                 </div>
               )}
             </div>
@@ -155,16 +168,26 @@ export default function DocumentQueryPage() {
             </div>
           </div>
         )}
+
+        {/* Scroll anchor */}
+        <div ref={bottomRef} />
       </div>
 
       {/* Input */}
       <div className="border-t border-gray-800 px-6 py-4 shrink-0">
         <form onSubmit={handleQuery} className="max-w-3xl mx-auto flex gap-3">
-          <input
+          <textarea
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
-            placeholder="Ask a question about this document..."
-            className="flex-1 bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-violet-500 transition"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleQuery(e as any);
+              }
+            }}
+            placeholder="Ask a question... (Enter to send, Shift+Enter for newline)"
+            rows={1}
+            className="flex-1 bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-violet-500 transition resize-none"
             disabled={loading}
           />
           <button
