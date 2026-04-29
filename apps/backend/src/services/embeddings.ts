@@ -1,25 +1,25 @@
-let pipeline: any = null;
+import { HfInference } from '@huggingface/inference';
 
-async function getEmbeddingPipeline() {
-  if (!pipeline) {
-    // Dynamically import ESM module
-    const { pipeline: createPipeline } = await import('@xenova/transformers');
-    pipeline = await createPipeline(
-      'feature-extraction',
-      'Xenova/all-MiniLM-L6-v2'
-    );
-    console.log('✅ Embedding model loaded');
-  }
-  return pipeline;
+if (!process.env.HUGGINGFACE_API_KEY) {
+  throw new Error('HUGGINGFACE_API_KEY is missing');
 }
 
+const hf = new HfInference(process.env.HUGGINGFACE_API_KEY);
+
+const MODEL = 'sentence-transformers/all-MiniLM-L6-v2';
+
 export async function generateEmbedding(text: string): Promise<number[]> {
-  const extractor = await getEmbeddingPipeline();
-  const output = await extractor(text, {
-    pooling: 'mean',
-    normalize: true,
+  const result = await hf.featureExtraction({
+    model: MODEL,
+    inputs: text,
   });
-  return Array.from(output.data) as number[];
+
+  // Result is a nested array — flatten to 1D
+  const embedding = Array.isArray(result[0])
+    ? (result as number[][])[0]
+    : (result as number[]);
+
+  return embedding;
 }
 
 export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
