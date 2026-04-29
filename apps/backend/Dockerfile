@@ -1,22 +1,23 @@
 FROM node:20-alpine
 
+RUN apk add --no-cache openssl
+
 WORKDIR /app
 
-# Copy package files
 COPY package*.json ./
 COPY prisma ./prisma/
 
-# Install dependencies
-RUN npm ci --only=production
+# Install ALL dependencies (including dev for build)
+RUN npm ci
 
-# Copy source
 COPY . .
 
-# Generate Prisma client
+# Generate Prisma client + build
 RUN npx prisma generate
-
-# Build TypeScript
 RUN npm run build
+
+# Remove dev dependencies after build
+RUN npm prune --production
 
 EXPOSE 5001
 
