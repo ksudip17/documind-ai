@@ -8,59 +8,36 @@
 ---
 
 ## Architecture
-┌─────────────────┐     ┌──────────────────────────────────────┐
-│   Next.js 14    │────▶│         Express.js + TypeScript       │
-│   (Vercel)      │     │            (Render)                   │
-└─────────────────┘     └──────┬───────────┬───────────┬───────┘
-│           │           │
-┌──────▼──┐  ┌─────▼───┐  ┌───▼─────┐
-│Supabase │  │ Upstash  │  │  Groq   │
-│Postgres │  │  Redis   │  │Llama 3.3│
-│+PGVector│  │  Cache   │  │   LLM   │
-└─────────┘  └──────────┘  └─────────┘
-│
-┌──────▼──────┐
-│   BullMQ    │
-│   Worker    │
-│  (Embed +   │
-│   Chunk)    │
-└─────────────┘
+
+```mermaid
+flowchart TD
+    A[Next.js 14 - Vercel] -->|HTTP REST| B[Express.js + TypeScript - Render]
+    B --> C[(PostgreSQL + PGVector\nSupabase)]
+    B --> D[(Redis Cache\nUpstash)]
+    B --> E[Groq API\nLlama 3.3 70B]
+    B --> F[BullMQ Worker]
+    F --> G[HuggingFace\nEmbeddings]
+    F --> C
+```
 
 ## RAG Pipeline
-Upload PDF/DOCX/TXT
-│
-▼
-Extract Text
-(pdf-parse/mammoth)
-│
-▼
-Split into Chunks
-(500 words, 50 overlap)
-│
-▼
-Generate Embeddings
-(HuggingFace all-MiniLM-L6-v2 → 384-dim vectors)
-│
-▼
-Store in PGVector
-(Supabase PostgreSQL)
-│
-User Query
-│
-▼
-Embed Question → Vector Search (cosine similarity, top-5)
-│
-▼
-Build LLM Prompt with retrieved chunks
-│
-▼
-Groq (Llama 3.3 70B) → Answer + Citations
-│
-▼
-Confidence Score (LLM-as-judge via Llama 3.1 8B)
-│
-▼
-Cache in Redis (1hr TTL) → Return to user
+
+```mermaid
+flowchart LR
+    A[Upload PDF/DOCX] --> B[Extract Text]
+    B --> C[Split into Chunks\n500 words + 50 overlap]
+    C --> D[Generate Embeddings\n384-dim vectors]
+    D --> E[(PGVector Store)]
+    F[User Question] --> G[Embed Question]
+    G --> H[Cosine Similarity Search\nTop-5 chunks]
+    E --> H
+    H --> I[Groq LLM\nLlama 3.3 70B]
+    I --> J[Answer + Citations]
+    J --> K[Confidence Score\nLLM-as-judge]
+    K --> L[(Redis Cache)]
+    L --> M[Return to User]
+```
+
 
 ## Tech Stack
 
@@ -179,33 +156,34 @@ GET /api/admin/stats       → { stats, documentsByStatus, recentQueries } [ADMI
 GET /api/admin/users       → { users } [ADMIN only]
 
 ## Project Structure
-documind-ai/
-├── apps/
-│   ├── backend/
-│   │   ├── src/
-│   │   │   ├── config/        # DB, Redis, Supabase, Groq connections
-│   │   │   ├── controllers/   # Route handlers
-│   │   │   ├── middleware/    # Auth, RBAC, error handler
-│   │   │   ├── queues/        # BullMQ queue definitions
-│   │   │   ├── routes/        # Express routers
-│   │   │   ├── services/      # RAG, embeddings, storage, cache
-│   │   │   ├── types/         # TypeScript interfaces
-│   │   │   ├── utils/         # JWT, password, file parser
-│   │   │   └── workers/       # BullMQ document processor
-│   │   ├── prisma/
-│   │   │   └── schema.prisma
-│   │   └── Dockerfile
-│   └── frontend/
-│       ├── app/
-│       │   ├── auth/
-│       │   ├── dashboard/
-│       │   └── page.tsx
-│       ├── hooks/
-│       ├── lib/
-│       └── store/
-└── .github/
-└── workflows/
-└── ci.yml
+
+```mermaid
+flowchart TD
+    Root[documind-ai/] --> Apps[apps/]
+    Root --> GH[.github/workflows/ci.yml]
+    
+    Apps --> BE[backend/]
+    Apps --> FE[frontend/]
+    
+    BE --> BESrc[src/]
+    BE --> BEPrisma[prisma/schema.prisma]
+    BE --> BEDocker[Dockerfile]
+    
+    BESrc --> Config[config/\nDB · Redis · Supabase · Groq]
+    BESrc --> Controllers[controllers/\nauth · document · query · admin]
+    BESrc --> Middleware[middleware/\nauth · errorHandler]
+    BESrc --> Queues[queues/\ndocumentQueue]
+    BESrc --> Routes[routes/\nauth · document · query · admin]
+    BESrc --> Services[services/\nRAG · embeddings · storage · cache]
+    BESrc --> Workers[workers/\ndocumentWorker]
+    BESrc --> Utils[utils/\njwt · password · fileParser]
+    BESrc --> Types[types/\nauth]
+
+    FE --> App[app/\nauth · dashboard]
+    FE --> Hooks[hooks/\nuseAuth]
+    FE --> Lib[lib/\napi · utils]
+    FE --> Store[store/\nauthStore]
+```
 
 ## Author
 
