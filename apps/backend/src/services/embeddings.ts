@@ -5,28 +5,26 @@ if (!process.env.HUGGINGFACE_API_KEY) {
 }
 
 const hf = new HfInference(process.env.HUGGINGFACE_API_KEY);
-
 const MODEL = 'sentence-transformers/all-MiniLM-L6-v2';
 
 export async function generateEmbedding(text: string): Promise<number[]> {
   const result = await hf.featureExtraction({
     model: MODEL,
     inputs: text,
-  });
+    provider: 'hf-inference',
+  }) as number[] | number[][];
 
-  // Result is a nested array — flatten to 1D
-  const embedding = Array.isArray(result[0])
-    ? (result as number[][])[0]
-    : (result as number[]);
-
-  return embedding;
+  // Flatten if nested array
+  if (Array.isArray(result[0])) {
+    return (result as number[][])[0];
+  }
+  return result as number[];
 }
 
 export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
   const embeddings: number[][] = [];
   for (const text of texts) {
-    const embedding = await generateEmbedding(text);
-    embeddings.push(embedding);
+    embeddings.push(await generateEmbedding(text));
   }
   return embeddings;
 }

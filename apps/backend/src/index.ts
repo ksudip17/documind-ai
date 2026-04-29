@@ -18,6 +18,7 @@ import { prisma } from './config/database';
 import { redis } from './config/redis';
 
 const app = express();
+app.set('trust proxy', 1);
 const httpServer = createServer(app);
 
 // ── Middleware ────────────────────────────────────────────
