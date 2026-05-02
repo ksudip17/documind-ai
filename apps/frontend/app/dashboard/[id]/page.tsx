@@ -94,7 +94,7 @@ export default function DocumentQueryPage() {
   }
 
   return (
-    <div className="h-screen bg-gray-950 flex flex-col overflow-hidden">
+    <div className="fixed inset-0 bg-gray-950 flex flex-col overflow-hidden">
       {/* Navbar */}
       <nav className="border-b border-gray-800 px-4 py-3 flex justify-between items-center shrink-0">
         <div className="flex items-center gap-2 min-w-0">
@@ -117,7 +117,7 @@ export default function DocumentQueryPage() {
       </nav>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 overscroll-contain">
         <div className="max-w-2xl mx-auto space-y-4">
           {messages.length === 0 && (
             <div className="text-center py-12">
@@ -192,7 +192,7 @@ export default function DocumentQueryPage() {
       </div>
 
       {/* Input — fixed at bottom, mobile safe */}
-      <div className="border-t border-gray-800 px-4 py-3 shrink-0 bg-gray-950">
+      <div className="border-t border-gray-800 px-4 py-3 pb-safe shrink-0 bg-gray-950">
         <div className="max-w-2xl mx-auto flex gap-2 items-end">
           <textarea
             ref={textareaRef}
