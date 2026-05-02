@@ -30,15 +30,19 @@ const upload = multer({
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'text/plain',
     'application/octet-stream',
+    'image/jpeg',
+    'image/jpg',
+    'image/png',
+    'image/webp',
   ];
 
-  const allowedExtensions = ['.pdf', '.docx', '.txt'];
+  const allowedExtensions = ['.pdf', '.docx', '.txt', '.jpg', '.jpeg', '.png', '.webp'];
   const ext = path.extname(file.originalname).toLowerCase();
 
   if (allowedMimes.includes(file.mimetype) || allowedExtensions.includes(ext)) {
     cb(null, true);
   } else {
-    cb(new Error('Only PDF, DOCX, and TXT files are allowed'));
+    cb(new Error('Only PDF, DOCX, TXT, JPG, and PNG files are allowed'));
   }
 },
 });
