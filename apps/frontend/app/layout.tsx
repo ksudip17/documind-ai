@@ -7,6 +7,10 @@ const inter = Inter({ subsets: ['latin'] });
 export const metadata: Metadata = {
   title: 'DocuMind AI — Ask Your Documents',
   description: 'Upload documents and get AI-powered answers instantly',
+  icons: {
+    icon: '/favicon.ico',
+    apple: '/logo.png',
+  },
 };
 
 export default function RootLayout({

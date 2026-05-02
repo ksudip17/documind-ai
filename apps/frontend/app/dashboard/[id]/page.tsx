@@ -90,6 +90,7 @@ export default function DocumentQueryPage() {
       {/* Navbar */}
       <nav className="border-b border-gray-800 px-6 py-4 flex justify-between items-center shrink-0">
         <div className="flex items-center gap-3">
+          <img src="/logo.png" alt="DocuMind AI" className="w-8 h-8 rounded-lg object-cover" />
           <button
             onClick={() => router.push('/dashboard')}
             className="text-gray-400 hover:text-white transition text-sm"

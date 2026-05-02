@@ -94,9 +94,7 @@ export default function DashboardPage() {
       {/* Navbar */}
       <nav className="border-b border-gray-800 px-6 py-4 flex justify-between items-center">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-violet-600 rounded-lg flex items-center justify-center text-sm font-bold">
-            D
-          </div>
+          <img src="/logo.png" alt="DocuMind AI" className="w-8 h-8 rounded-lg object-cover" />
           <span className="font-semibold">DocuMind AI</span>
         </div>
 
