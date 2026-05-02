@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import fs from 'fs';
+import path from 'path';
 import { prisma } from '../config/database';
 import { uploadToStorage, deleteFromStorage, getSignedUrl } from '../services/storage';
 import { extractTextFromFile } from '../utils/fileParser';
@@ -17,42 +18,37 @@ export async function uploadDocument(req: Request, res: Response): Promise<void>
   try {
     const userId = req.user!.userId;
 
-    // 1. Upload to Supabase Storage
-    const storageUrl = await uploadToStorage(file.path, userId, file.originalname);
-
-    // 2. Extract text to validate file is readable
+    // 1. Extract text immediately to validate file
     const parsed = await extractTextFromFile(file.path, file.mimetype);
 
     if (!parsed.text || parsed.text.length < 50) {
       fs.unlinkSync(file.path);
-      await deleteFromStorage(storageUrl);
       res.status(400).json({ error: 'File appears to be empty or unreadable' });
       return;
     }
 
-    // 3. Save document record to DB
+    // 2. Save document record immediately with temp path
+    const storagePath = `${userId}/${Date.now()}${path.extname(file.originalname)}`;
     const document = await prisma.document.create({
       data: {
         fileName: file.originalname,
         fileSize: file.size,
         fileType: file.mimetype,
-        storageUrl,
+        storageUrl: storagePath,
         status: 'PENDING',
         userId,
       },
     });
 
-    // 4. Queue background processing job
+    // 3. Queue processing job immediately
     await addDocumentProcessingJob({
       documentId: document.id,
       userId,
-      storagePath: storageUrl,
+      storagePath: file.path,
       extractedText: parsed.text,
     });
 
-    // 5. Clean up local temp file
-    fs.unlinkSync(file.path);
-
+    // 4. Respond to user immediately — don't wait for Supabase
     res.status(201).json({
       message: 'Document uploaded successfully. Processing started.',
       document: {
@@ -63,16 +59,32 @@ export async function uploadDocument(req: Request, res: Response): Promise<void>
         createdAt: document.createdAt,
       },
     });
+
+    // 5. Upload to Supabase Storage in background (non-blocking)
+    uploadToStorage(file.path, userId, file.originalname)
+      .then((url) =>
+        prisma.document.update({
+          where: { id: document.id },
+          data: { storageUrl: url },
+        })
+      )
+      .catch((err) => console.error('Background storage upload failed:', err))
+      .finally(() => {
+        if (file.path && fs.existsSync(file.path)) {
+          fs.unlinkSync(file.path);
+        }
+      });
+
   } catch (error) {
-  if (file?.path && fs.existsSync(file.path)) {
-    fs.unlinkSync(file.path);
+    if (file?.path && fs.existsSync(file.path)) {
+      fs.unlinkSync(file.path);
+    }
+    console.error('Upload error FULL:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
+    res.status(500).json({
+      error: 'Failed to upload document',
+      detail: error instanceof Error ? error.message : String(error),
+    });
   }
-  console.error('Upload error FULL:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
-  res.status(500).json({ 
-    error: 'Failed to upload document',
-    detail: error instanceof Error ? error.message : String(error)
-  });
-}
 }
 
 // ── Get all documents for user ────────────────────────────
@@ -118,9 +130,7 @@ export async function getDocument(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    // Get signed URL for download
     const downloadUrl = await getSignedUrl(document.storageUrl);
-
     res.json({ document: { ...document, downloadUrl } });
   } catch (error) {
     console.error('Get document error:', error);
@@ -143,7 +153,6 @@ export async function deleteDocument(req: Request, res: Response): Promise<void>
       return;
     }
 
-    // Delete from storage + DB (cascade deletes chunks + queries)
     await deleteFromStorage(document.storageUrl);
     await prisma.document.delete({ where: { id: document.id } });
 
