@@ -73,6 +73,7 @@ export async function uploadDocument(req: Request, res: Response): Promise<void>
     detail: error instanceof Error ? error.message : String(error)
   });
 }
+}
 
 // ── Get all documents for user ────────────────────────────
 export async function getDocuments(req: Request, res: Response): Promise<void> {
