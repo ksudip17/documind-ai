@@ -4,18 +4,20 @@ export default function HomePage() {
   return (
     <main className="min-h-screen bg-gray-950 flex flex-col">
       {/* Navbar */}
-      <nav className="border-b border-gray-800 px-6 py-4 flex justify-between items-center">
-        <div className="flex items-center gap-2">
-          <img src="/logo.png" alt="DocuMind AI" className="w-8 h-8 rounded-lg object-cover" />
-          <span className="font-semibold text-lg">DocuMind AI</span>
-        </div>
-        <div className="flex gap-3">
-          <Link href="/auth/login" className="px-4 py-2 text-sm text-gray-300 hover:text-white transition">
-            Login
-          </Link>
-          <Link href="/auth/register" className="px-4 py-2 text-sm bg-violet-600 hover:bg-violet-700 rounded-lg transition">
-            Get Started
-          </Link>
+      <nav className="border-b border-gray-800 px-4 py-4 w-full overflow-x-hidden">
+        <div className="max-w-5xl mx-auto flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <img src="/logo.png" alt="DocuMind AI" className="w-7 h-7 rounded-lg object-cover" />
+            <span className="font-semibold text-sm sm:text-base">DocuMind AI</span>
+          </div>
+          <div className="flex gap-2 sm:gap-3">
+            <Link href="/auth/login" className="px-3 py-1.5 text-xs sm:text-sm text-gray-300 hover:text-white transition">
+              Login
+            </Link>
+            <Link href="/auth/register" className="px-3 py-1.5 text-xs sm:text-sm bg-violet-600 hover:bg-violet-700 rounded-lg transition">
+              Get Started
+            </Link>
+          </div>
         </div>
       </nav>
 
