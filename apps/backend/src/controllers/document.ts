@@ -64,13 +64,14 @@ export async function uploadDocument(req: Request, res: Response): Promise<void>
       },
     });
   } catch (error) {
-    // Clean up temp file on error
-    if (file.path && fs.existsSync(file.path)) {
-      fs.unlinkSync(file.path);
-    }
-    console.error('Upload error:', error);
-    res.status(500).json({ error: 'Failed to upload document' });
+  if (file?.path && fs.existsSync(file.path)) {
+    fs.unlinkSync(file.path);
   }
+  console.error('Upload error FULL:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
+  res.status(500).json({ 
+    error: 'Failed to upload document',
+    detail: error instanceof Error ? error.message : String(error)
+  });
 }
 
 // ── Get all documents for user ────────────────────────────
