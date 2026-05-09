@@ -13,28 +13,22 @@ export function startDocumentWorker() {
 
       console.log(`⚙️  Processing document: ${documentId}`);
 
-      // 1. Update status to PROCESSING
       await prisma.document.update({
         where: { id: documentId },
         data: { status: 'PROCESSING' },
       });
 
       try {
-        // 2. Split text into chunks
         const chunks = splitTextIntoChunks(extractedText, 500, 50);
         console.log(`📄 Split into ${chunks.length} chunks`);
 
         await job.updateProgress(10);
 
-        // 3. Generate embeddings + store chunks
         for (let i = 0; i < chunks.length; i++) {
           const chunk = chunks[i];
-
-          // Generate embedding
           const embedding = await generateEmbedding(chunk.content);
           const vectorString = `[${embedding.join(',')}]`;
 
-          // Store chunk with embedding using raw SQL (PGVector)
           await prisma.$executeRaw`
             INSERT INTO document_chunks (id, content, "chunkIndex", embedding, "documentId", "createdAt")
             VALUES (
@@ -47,12 +41,10 @@ export function startDocumentWorker() {
             )
           `;
 
-          // Update progress
           const progress = 10 + Math.floor((i / chunks.length) * 85);
           await job.updateProgress(progress);
         }
 
-        // 4. Update document status to COMPLETED
         await prisma.document.update({
           where: { id: documentId },
           data: {
@@ -65,7 +57,6 @@ export function startDocumentWorker() {
         console.log(`✅ Document processed: ${documentId} (${chunks.length} chunks)`);
 
       } catch (error) {
-        // Update status to FAILED
         await prisma.document.update({
           where: { id: documentId },
           data: { status: 'FAILED' },
@@ -75,7 +66,10 @@ export function startDocumentWorker() {
     },
     {
       connection: redis,
-      concurrency: 2,
+      concurrency: 1,
+      stalledInterval: 300000,
+      lockDuration: 120000,
+      lockRenewTime: 60000,
     }
   );
 
