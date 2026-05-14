@@ -3,7 +3,7 @@
 > Upload any document. Ask questions. Get AI-powered answers with source citations.
 
 **Live Demo:** https://documind-ai-zeta.vercel.app  
-**API:** https://documind-ai-4spv.onrender.com/health
+**API (health):** https://documind-ai.mooo.com/health
 
 ---
 
@@ -28,7 +28,7 @@
 | Vector Search | PGVector cosine similarity |
 | Auth | JWT + RBAC (User/Admin roles) |
 | Storage | Supabase Storage |
-| Deployment | Vercel (frontend) + Render (backend) |
+| Deployment | Vercel (frontend) + AWS EC2 (backend) |
 | CI/CD | GitHub Actions |
 | Containerization | Docker |
 
@@ -99,15 +99,17 @@ FRONTEND_URL=http://localhost:3000
 NEXT_PUBLIC_API_URL=http://localhost:5001/api
 ```
 
-### Free Services Used
-| Service | Free Tier |
-|---------|-----------|
-| Supabase | 500MB DB, 1GB storage |
-| Upstash | 10,000 req/day |
+For the **production** frontend (for example Vercel), set `NEXT_PUBLIC_API_URL` to `https://documind-ai.mooo.com/api` so the app calls the EC2-hosted API. The health check lives at `/health` (not under `/api`).
+
+### Third-party services & hosting
+| Service | Notes |
+|---------|-------|
+| Supabase | 500MB DB, 1GB storage (free tier) |
+| Upstash | 10,000 req/day (free tier) |
 | Groq | Free LLM API |
-| HuggingFace | 1000 inference/day |
+| HuggingFace | 1000 inference/day (free tier) |
 | Vercel | Unlimited hobby deploys |
-| Render | 750 hours/month |
+| AWS EC2 | Backend API (self-hosted; replaces Render after free tier expired) |
 
 ## API Reference
 
