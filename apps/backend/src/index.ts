@@ -1,5 +1,6 @@
 import './config/env';
 import express from 'express';
+import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
@@ -17,6 +18,12 @@ import { prisma } from './config/database';
 import { redis } from './config/redis';
 
 const app = express();
+
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  credentials: true,
+}));
+
 app.set('trust proxy', 1);
 const httpServer = createServer(app);
 
