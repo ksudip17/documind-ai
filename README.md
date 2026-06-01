@@ -138,5 +138,5 @@ GET /api/admin/users       → { users } [ADMIN only]
 ## Author
 
 **Sudip Khatiwada**  
-Backend Developer | Node.js + AI/ML  
+Backend Developer | Node.js + AI/ML 
 [GitHub](https://github.com/ksudip17) · [LinkedIn](https://www.linkedin.com/in/sudipkhatiwada/)
