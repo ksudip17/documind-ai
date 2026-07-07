@@ -1,21 +1,12 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { queryDocument } from '../services/ragService';
 import { getCachedAnswer, setCachedAnswer } from '../services/cacheService';
 
-export async function query(req: Request, res: Response): Promise<void> {
+// Note: question/documentId validation is handled upstream by querySchema middleware.
+export async function query(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const { question, documentId } = req.body;
     const userId = req.user!.userId;
-
-    if (!question || !documentId) {
-      res.status(400).json({ error: 'question and documentId are required' });
-      return;
-    }
-
-    if (question.trim().length < 3) {
-      res.status(400).json({ error: 'Question is too short' });
-      return;
-    }
 
     // 1. Check Redis cache first
     const cached = await getCachedAnswer(question, documentId);
@@ -39,12 +30,11 @@ export async function query(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    console.error('Query error:', error);
-    res.status(500).json({ error: 'Failed to process query' });
+    next(error);
   }
 }
 
-export async function getQueryHistory(req: Request, res: Response): Promise<void> {
+export async function getQueryHistory(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const { prisma } = await import('../config/database');
     const { documentId } = req.params;
@@ -69,7 +59,6 @@ export async function getQueryHistory(req: Request, res: Response): Promise<void
 
     res.json({ logs });
   } catch (error) {
-    console.error('Query history error:', error);
-    res.status(500).json({ error: 'Failed to fetch query history' });
+    next(error);
   }
 }
