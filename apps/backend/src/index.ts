@@ -17,7 +17,7 @@
  * 11. errorHandler        — MUST be last; catches everything forwarded via next(err)
  */
 
-import './config/env';                          // ← validates all env vars on startup
+import './config/env';
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -38,96 +38,46 @@ import { env } from './config/env';
 
 const app = express();
 
-// ── 1. Trust proxy (Nginx on EC2) ────────────────────────────────────────────
-// Required so that req.ip and x-forwarded-for are correct.
-// '1' means trust the first proxy hop (our Nginx).
+// ── 1. Trust proxy ────────────────────────────────────────────────────────────
 app.set('trust proxy', 1);
 
-// ── 2. Helmet — security headers ─────────────────────────────────────────────
-//
-// WHY EACH HEADER:
-//  HSTS:             Forces browsers to use HTTPS for 1 year; includes subdomains.
-//                    'preload' opts into browser preload lists.
-//  frameguard:       X-Frame-Options: DENY — prevents clickjacking via <iframe>.
-//  noSniff:          X-Content-Type-Options: nosniff — prevents MIME sniffing
-//                    which could cause browsers to execute non-JS files as JS.
-//  referrerPolicy:   Only send origin (no path) in Referer header when crossing
-//                    origins, preventing credential leakage in query strings.
-//  permissionsPolicy: Disables browser APIs that DocuMind doesn't use.
-//  contentSecurityPolicy: Whitelist of exactly where resources can load from.
-//                    frame-ancestors 'none' is the CSP equivalent of X-Frame-Options.
-
+// ── 2. Helmet ─────────────────────────────────────────────────────────────────
 app.use(
   helmet({
-    // ── HSTS ───────────────────────────────────────────────────────────────
     hsts: {
-      maxAge: 31536000,          // 1 year in seconds (required for preload)
+      maxAge: 31536000,
       includeSubDomains: true,
       preload: true,
     },
-
-    // ── X-Frame-Options: DENY ──────────────────────────────────────────────
     frameguard: { action: 'deny' },
-
-    // ── X-Content-Type-Options: nosniff ───────────────────────────────────
     noSniff: true,
-
-    // ── Referrer-Policy ───────────────────────────────────────────────────
     referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
-
-    // ── Content-Security-Policy ───────────────────────────────────────────
     contentSecurityPolicy: {
       directives: {
-        // Default: only allow resources from our own origin
         defaultSrc: ["'self'"],
-
-        // Scripts: only from self + Next.js on Vercel
         scriptSrc: ["'self'"],
-
-        // Styles: self + Tailwind inline styles require unsafe-inline here
-        // (Tailwind does not use nonces). Lock down further if you add a CDN.
         styleSrc: ["'self'", "'unsafe-inline'"],
-
-        // Images: self + data URIs (base64 previews) + HTTPS (Supabase Storage CDN)
         imgSrc: ["'self'", "data:", "https:"],
-
-        // Fonts: self only
         fontSrc: ["'self'"],
-
-        // API connections: self + Supabase + Groq (for client-side calls if any)
         connectSrc: [
           "'self'",
-          env.FRONTEND_URL,
-          env.SUPABASE_URL,
+          "https://documind-ai.mooo.com",
           "https://api.groq.com",
+          "wss:",
         ],
-
-        // No plugins/objects (Flash, Java applets, etc.)
         objectSrc: ["'none'"],
-
-        // Base URI locked to self (prevents base-tag injection)
         baseUri: ["'self'"],
-
-        // Prevents this page from being embedded in any frame (clickjacking)
         frameAncestors: ["'none'"],
-
-        // Forms only submit to our own origin
         formAction: ["'self'"],
-
-        // Upgrade insecure requests to HTTPS in production
         ...(env.isProduction ? { upgradeInsecureRequests: [] } : {}),
       },
     },
-
-    // ── Permissions-Policy ────────────────────────────────────────────────
-    // Disables browser APIs DocuMind AI does not use.
-    // Prevents malicious scripts from silently accessing camera/mic/GPS.
     permittedCrossDomainPolicies: false,
-    crossOriginEmbedderPolicy: false,  // set to true only if you need SharedArrayBuffer
+    crossOriginEmbedderPolicy: false,
   })
 );
 
-// Permissions-Policy is not yet in Helmet's built-in set; add manually
+// Permissions-Policy header
 app.use((_req, res, next) => {
   res.setHeader(
     'Permissions-Policy',
@@ -137,13 +87,8 @@ app.use((_req, res, next) => {
 });
 
 // ── 3. CORS ───────────────────────────────────────────────────────────────────
-//
-// Explicitly whitelist our frontend origin. Never use '*' in production —
-// it allows any website to make authenticated requests from a user's browser.
-
 const ALLOWED_ORIGINS = [
   env.FRONTEND_URL,
-  // Allow localhost variants during development
   ...(env.isDevelopment
     ? ['http://localhost:3000', 'http://127.0.0.1:3000']
     : []),
@@ -152,51 +97,46 @@ const ALLOWED_ORIGINS = [
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow server-to-server requests (no origin header) and whitelisted origins
       if (!origin || ALLOWED_ORIGINS.includes(origin)) {
         callback(null, true);
       } else {
         callback(new Error(`CORS: origin '${origin}' is not allowed`));
       }
     },
-    credentials: true,                  // allow Authorization header / cookies
+    credentials: true,
     methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID'],
-    exposedHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset', 'Retry-After'],
+    exposedHeaders: [
+      'X-RateLimit-Limit',
+      'X-RateLimit-Remaining',
+      'X-RateLimit-Reset',
+      'Retry-After',
+    ],
   })
 );
 
-// ── 4. Request ID — tracing header ───────────────────────────────────────────
-// Attaches a unique ID to every request so logs can be correlated across
-// services. The client can also send X-Request-ID and we echo it back.
+// ── 4. Request ID ─────────────────────────────────────────────────────────────
 const httpServer = createServer(app);
 
 app.use((req, res, next) => {
-  const requestId = (req.headers['x-request-id'] as string) || crypto.randomUUID();
+  const requestId =
+    (req.headers['x-request-id'] as string) || crypto.randomUUID();
   res.setHeader('X-Request-ID', requestId);
   (req as Request & { requestId: string }).requestId = requestId;
   next();
 });
 
 // ── 5. Body parsers ───────────────────────────────────────────────────────────
-// Limit JSON body to 10MB to prevent DoS via oversized payloads.
-// (File uploads go through multer separately; JSON routes are typically small.)
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // ── 6. Input sanitisation ─────────────────────────────────────────────────────
-// Trims strings, normalises emails, strips __proto__ pollution keys.
-// Runs BEFORE routes so every request body is clean before Zod sees it.
 app.use(sanitizeBody);
 
 // ── 7. HTTP request logger ────────────────────────────────────────────────────
-// Use 'combined' in production (Apache log format, compatible with log aggregators)
-// Use 'dev' in development (colourised, concise)
 app.use(morgan(env.isProduction ? 'combined' : 'dev'));
 
 // ── 8. Global rate limiter ────────────────────────────────────────────────────
-// Applies 1000 req/hour per IP to ALL routes as a last-resort DoS backstop.
-// Specific routes apply tighter limiters on top of this.
 app.use(generalLimiter);
 
 // ── Root ──────────────────────────────────────────────────────────────────────
@@ -208,8 +148,6 @@ app.get('/', (_req, res) => {
 });
 
 // ── Health check ──────────────────────────────────────────────────────────────
-// Intentionally does NOT apply auth — used by load balancer and monitoring.
-// Does NOT expose sensitive service details in production.
 app.get('/health', async (_req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
@@ -219,28 +157,26 @@ app.get('/health', async (_req, res) => {
       status: 'ok',
       timestamp: new Date().toISOString(),
       environment: env.NODE_ENV,
-      // In production, only expose status booleans — not key presence
       services: env.isProduction
         ? { database: 'connected', redis: 'connected' }
         : {
-            database: 'connected',
-            redis:    'connected',
-            groq:     env.GROQ_API_KEY    ? 'key loaded' : 'missing',
-            supabase: env.SUPABASE_URL    ? 'key loaded' : 'missing',
-          },
+          database: 'connected',
+          redis: 'connected',
+          groq: env.GROQ_API_KEY ? 'key loaded' : 'missing',
+          supabase: env.SUPABASE_URL ? 'key loaded' : 'missing',
+        },
     });
   } catch (error) {
-    // Only log internally — don't expose error details to external callers
     console.error('[HEALTH_CHECK_FAILED]', error);
     res.status(503).json({ status: 'error', message: 'Service unavailable' });
   }
 });
 
 // ── 9. Routes ─────────────────────────────────────────────────────────────────
-app.use('/api/auth',      authRouter);
+app.use('/api/auth', authRouter);
 app.use('/api/documents', documentRouter);
-app.use('/api/query',     queryRouter);
-app.use('/api/admin',     adminRouter);
+app.use('/api/query', queryRouter);
+app.use('/api/admin', adminRouter);
 
 // ── 10. 404 handler ───────────────────────────────────────────────────────────
 app.use((_req, res) => {
@@ -248,7 +184,6 @@ app.use((_req, res) => {
 });
 
 // ── 11. Global error handler ──────────────────────────────────────────────────
-// MUST be last — Express identifies error-handling middleware by its 4-arg signature
 app.use(errorHandler);
 
 // ── Start ─────────────────────────────────────────────────────────────────────
