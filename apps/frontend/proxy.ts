@@ -39,7 +39,7 @@ import type { NextRequest } from 'next/server';
 const API_URL      = process.env.NEXT_PUBLIC_API_URL      || 'http://localhost:5001';
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   // Generate a fresh random nonce for every request.
   // crypto.randomUUID() is available in the Edge runtime.
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
@@ -101,14 +101,14 @@ export function middleware(request: NextRequest) {
 }
 
 /**
- * Matcher — which routes this middleware runs on.
+ * Matcher — which routes this proxy runs on.
  *
  * EXCLUDES:
  *  - _next/static  — static asset files (JS/CSS bundles); no HTML, no CSP needed
  *  - _next/image   — Next.js image optimisation endpoint
  *  - favicon.ico   — browser favicon request
  *
- * The 'missing' condition prevents the middleware from running on Next.js
+ * The 'missing' condition prevents the proxy from running on Next.js
  * internal prefetch requests (they don't render HTML, so CSP is irrelevant).
  */
 export const config = {
