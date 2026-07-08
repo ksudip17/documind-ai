@@ -39,11 +39,23 @@ import type { NextRequest } from 'next/server';
 const API_URL      = process.env.NEXT_PUBLIC_API_URL      || 'http://localhost:5001';
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 
+// CSP connect-src requires origins (protocol + host), NOT full URLs with paths.
+// If NEXT_PUBLIC_API_URL is 'https://documind-ai.mooo.com/api', the /api path
+// makes the browser treat it as an exact match — blocking /api/auth/login, etc.
+// new URL(...).origin strips the path, giving 'https://documind-ai.mooo.com'.
+const safeOrigin = (url: string): string => {
+  if (!url) return '';
+  try { return new URL(url).origin; } catch { return url; }
+};
+
+const API_ORIGIN      = safeOrigin(API_URL);
+const SUPABASE_ORIGIN = safeOrigin(SUPABASE_URL);
+
 // Build connect-src dynamically, filtering empty strings
 const connectSources = [
   "'self'",
-  API_URL,
-  SUPABASE_URL,
+  API_ORIGIN,
+  SUPABASE_ORIGIN,
   'https://api.groq.com',
   'wss:',
 ].filter(Boolean).join(' ');
