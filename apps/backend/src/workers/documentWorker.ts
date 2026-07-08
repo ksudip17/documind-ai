@@ -67,9 +67,17 @@ export function startDocumentWorker() {
     {
       connection: redis,
       concurrency: 1,
+      // stalledInterval: how often (ms) to check for stalled jobs
+      // 5 min is already conservative
       stalledInterval: 300000,
       lockDuration: 120000,
       lockRenewTime: 60000,
+      // drainDelay: how long (ms) the worker waits before re-polling Redis
+      // when the queue is empty. Default is 5ms — on Upstash free tier
+      // (500k commands/day) this causes ~12,000 evalsha calls/min just from
+      // idle polling, exhausting the limit in under an hour.
+      // 30s = ~2 polls/min when idle = ~2,880/day vs ~17,280,000 at default.
+      drainDelay: 30000,
     }
   );
 

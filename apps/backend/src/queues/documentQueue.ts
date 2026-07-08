@@ -19,6 +19,10 @@ export const documentQueue = new Queue<DocumentJobData>('document-processing', {
     removeOnComplete: 100,
     removeOnFail: 50,
   },
+  // Reduce idle Redis polling — default is 5ms which burns through
+  // Upstash free tier (500k/day) rapidly when queue is empty.
+  // 30s drain delay means the worker checks for new jobs every 30s
+  // when idle instead of hammering Redis continuously.
 });
 
 export async function addDocumentProcessingJob(data: DocumentJobData) {
