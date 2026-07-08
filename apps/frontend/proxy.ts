@@ -39,6 +39,15 @@ import type { NextRequest } from 'next/server';
 const API_URL      = process.env.NEXT_PUBLIC_API_URL      || 'http://localhost:5001';
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 
+// Build connect-src dynamically, filtering empty strings
+const connectSources = [
+  "'self'",
+  API_URL,
+  SUPABASE_URL,
+  'https://api.groq.com',
+  'wss:',
+].filter(Boolean).join(' ');
+
 export function proxy(request: NextRequest) {
   // Generate a fresh random nonce for every request.
   // crypto.randomUUID() is available in the Edge runtime.
@@ -67,7 +76,7 @@ export function proxy(request: NextRequest) {
     `font-src 'self'`,
 
     // Fetch / XHR / WebSocket targets
-    `connect-src 'self' ${API_URL} ${SUPABASE_URL} https://api.groq.com wss:`,
+    `connect-src ${connectSources}`,
 
     // Block legacy plugin content (Flash, Java applets)
     `object-src 'none'`,
