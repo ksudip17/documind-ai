@@ -9,24 +9,44 @@ export default function LoginPage() {
   const router = useRouter();
   const setAuth = useAuthStore((s) => s.setAuth);
   const [form, setForm] = useState({ email: '', password: '' });
-  const [error, setError] = useState('');
+  const [globalError, setGlobalError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    setError('');
+    setGlobalError('');
+    setFieldErrors({});
     try {
       const { data } = await api.post('/auth/login', form);
       setAuth(data.user, data.token);
       router.push('/dashboard');
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Login failed');
+      const resp = err.response?.data;
+      if (resp?.fields && Array.isArray(resp.fields)) {
+        const mapped: Record<string, string> = {};
+        resp.fields.forEach((f: { field: string; message: string }) => {
+          if (!mapped[f.field]) mapped[f.field] = f.message;
+        });
+        setFieldErrors(mapped);
+        setGlobalError('Please check your details and try again.');
+      } else {
+        setGlobalError(resp?.error || 'Login failed. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
   }
+
+  const inputClass = (field: string) =>
+    `w-full bg-gray-800 border rounded-lg px-4 py-3 text-sm focus:outline-none transition ${
+      fieldErrors[field]
+        ? 'border-red-500 focus:border-red-400'
+        : 'border-gray-700 focus:border-violet-500'
+    }`;
+
 
   return (
     <div className="min-h-screen bg-gray-950 flex items-center justify-center px-4">
@@ -38,9 +58,9 @@ export default function LoginPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="bg-gray-900 border border-gray-800 rounded-2xl p-6 sm:p-8 space-y-5">
-          {error && (
+          {globalError && (
             <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-lg text-sm">
-              {error}
+              {globalError}
             </div>
           )}
 
@@ -51,9 +71,14 @@ export default function LoginPage() {
               required
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-violet-500 transition"
+              className={inputClass('email')}
               placeholder="samir@example.com"
             />
+            {fieldErrors.email && (
+              <p className="mt-1.5 text-xs text-red-400 flex items-center gap-1">
+                <span>⚠</span> {fieldErrors.email}
+              </p>
+            )}
           </div>
 
           <div>
@@ -64,7 +89,7 @@ export default function LoginPage() {
                 required
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
-                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 pr-12 text-sm focus:outline-none focus:border-violet-500 transition"
+                className={`${inputClass('password')} pr-12`}
                 placeholder="••••••••"
               />
               <button
