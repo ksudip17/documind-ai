@@ -23,10 +23,21 @@ import { Request, Response, NextFunction } from 'express';
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * UUID v4 — used for any :id route parameter or body field that must be a
- * valid UUID. Prevents arbitrary string injection into DB lookups.
+ * Prisma document/query ID — Prisma generates CUID v1 by default
+ * (e.g. cmrqehyzj00069z9ctseq2qsa). The old z.string().uuid() schema
+ * rejected every valid document ID because UUIDs and CUIDs are different
+ * formats, causing every GET/DELETE /documents/:id request to return 400.
+ *
+ * Accepts both CUID (Prisma default) and UUID (future-proof) formats.
+ * Still blocks arbitrary string injection — only well-formed DB-generated
+ * IDs pass validation.
  */
-const uuid = z.string().uuid('Must be a valid UUID');
+const dbId = z
+  .string()
+  .regex(
+    /^[a-z0-9]{20,36}$|^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    'Must be a valid document ID'
+  );
 
 /**
  * Normalised email: trim whitespace, force lowercase.
@@ -107,7 +118,7 @@ export const querySchema = z.object({
     .min(3, 'Question must be at least 3 characters')
     .max(500, 'Question must be at most 500 characters'),
 
-  documentId: uuid,
+  documentId: dbId,
 });
 
 /**
@@ -116,7 +127,7 @@ export const querySchema = z.object({
  * Validates the :documentId URL parameter is a valid UUID before the DB query.
  */
 export const queryHistoryParamsSchema = z.object({
-  documentId: uuid,
+  documentId: dbId,
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -128,7 +139,7 @@ export const queryHistoryParamsSchema = z.object({
  * DELETE /api/documents/:id  (route param)
  */
 export const documentIdParamSchema = z.object({
-  id: uuid,
+  id: dbId,
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

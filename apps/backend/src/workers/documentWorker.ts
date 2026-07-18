@@ -26,14 +26,20 @@ export function startDocumentWorker() {
 
         for (let i = 0; i < chunks.length; i++) {
           const chunk = chunks[i];
-          const embedding = await generateEmbedding(chunk.content);
+
+          // PostgreSQL UTF8 rejects the null byte (0x00) which can appear in
+          // binary PDFs or corrupted documents. Strip it before DB insertion
+          // to prevent: "ERROR: invalid byte sequence for encoding UTF8: 0x00"
+          const safeContent = chunk.content.replace(/\0/g, '');
+
+          const embedding = await generateEmbedding(safeContent);
           const vectorString = `[${embedding.join(',')}]`;
 
           await prisma.$executeRaw`
             INSERT INTO document_chunks (id, content, "chunkIndex", embedding, "documentId", "createdAt")
             VALUES (
               gen_random_uuid()::text,
-              ${chunk.content},
+              ${safeContent},
               ${chunk.index},
               ${vectorString}::vector,
               ${documentId},
