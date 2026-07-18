@@ -27,6 +27,7 @@ export default function DocumentQueryPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [question, setQuestion] = useState('');
   const [loading, setLoading] = useState(false);
+  const [pageError, setPageError] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -52,8 +53,17 @@ export default function DocumentQueryPage() {
     try {
       const { data } = await api.get(`/documents/${id}`);
       setDocument(data.document);
-    } catch {
-      router.push('/dashboard');
+    } catch (err: any) {
+      const status = err.response?.status;
+      const msg = err.response?.data?.error || err.message || 'Failed to load document';
+      if (status === 404) {
+        setPageError('Document not found. It may have been deleted.');
+      } else if (status === 403) {
+        setPageError('You do not have access to this document.');
+      } else if (status !== 401) {
+        // 401 is handled by the API interceptor (redirects to login)
+        setPageError(`Could not load document: ${msg}`);
+      }
     }
   }
 
@@ -115,6 +125,19 @@ export default function DocumentQueryPage() {
           </span>
         )}
       </nav>
+
+      {/* Page-level error banner */}
+      {pageError && (
+        <div className="bg-red-500/10 border-b border-red-500/20 px-4 py-3 flex items-center justify-between shrink-0">
+          <p className="text-red-400 text-sm">⚠ {pageError}</p>
+          <button
+            onClick={() => router.push('/dashboard')}
+            className="text-red-400 hover:text-red-300 text-xs underline shrink-0 ml-4"
+          >
+            ← Back to dashboard
+          </button>
+        </div>
+      )}
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 overscroll-contain">
